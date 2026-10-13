@@ -1,0 +1,16 @@
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+*.egg-info/
+build/
+dist/
+data/
+*.sqlite3
+*.sqlite3-*
+.env
+.env.*
+!.env.example
+*.log
+local-validation.json

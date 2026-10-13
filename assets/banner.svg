@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="300" viewBox="0 0 1280 300" role="img" aria-labelledby="title description">
+  <title id="title">Knowledge Task API</title>
+  <desc id="description">Durable jobs, scoped retrieval and clear failure states. FastAPI, SQLite and fenced workers.</desc>
+  <rect width="1280" height="300" rx="22" fill="#0d1117"/>
+  <rect x="44" y="40" width="8" height="220" rx="4" fill="#70a7ff"/>
+  <text x="86" y="83" font-family="Arial,sans-serif" font-size="17" letter-spacing="3" fill="#70a7ff">BUILD. BREAK. EXPLAIN.</text>
+  <text x="82" y="149" font-family="Arial,sans-serif" font-size="58" font-weight="bold" fill="#e6edf3">Knowledge Task API</text>
+  <text x="86" y="195" font-family="Arial,sans-serif" font-size="23" fill="#9da7b3">Durable jobs. Scoped retrieval. Clear failure states.</text>
+  <g font-family="Arial,sans-serif" font-size="17" fill="#cfe1ff">
+    <rect x="86" y="223" width="156" height="40" rx="12" fill="#1b2b43"/><text x="106" y="249">FastAPI + SQL</text>
+    <rect x="258" y="223" width="174" height="40" rx="12" fill="#1b2b43"/><text x="278" y="249">Leases + retries</text>
+    <rect x="448" y="223" width="172" height="40" rx="12" fill="#1b2b43"/><text x="468" y="249">Tenant checks</text>
+  </g>
+</svg>
