@@ -14,8 +14,16 @@ These are correctness scenarios, not throughput, latency, uptime or production-s
 
 The installed Starlette test transport emits one deprecation warning for its HTTPX adapter. Tests pass; migrating that test adapter is a small follow-up task rather than a runtime failure.
 
+## SSE terminal-event fix — 2026-10-13
+
+- Added six deterministic scenarios: succeeded / failed / cancelled, each on an initial and resumed SSE stream. All six failed against the original implementation by missing the last persisted event, and all six pass with the corrected read order.
+- A 201-event terminal backlog is delivered in order with no missing or duplicate IDs and exactly one final `end` event.
+- Local Python 3.12.14 / Linux: all **47 behavior cases passed**. The real HTTP demo also passed submission, replay, conflict, indexing, search, tenant isolation and persisted SSE replay.
+- The race tests use real SQLite transactions with a controlled transition after an event-read snapshot. The HTTP demo verifies the normal network flow; it does not independently force that exact interleaving over a network connection.
+- Existing test-transport deprecation warning remains. No runtime dependencies changed.
+
 ## Continuous integration
 
-The configured matrix uses Linux / Python 3.11, 3.12, 3.14 and Windows, macOS / Python 3.12. Every job installs the project with the recorded constraints, runs the behavior tests and launches the real HTTP demo. A workflow configuration alone is not evidence of success: inspect [actual runs](https://github.com/lashonbakker-crypto/knowledge-task-api/actions).
+The configured matrix uses Linux / Python 3.11, 3.12, 3.14, Windows / Python 3.12 and macOS 15 (Intel) / Python 3.12. GitHub reported capacity constraints for the ARM macOS runners during this maintenance round, so the standard Intel label is used to complete the same checks. This does not establish Apple Silicon coverage. Available labels: [official runner reference](https://docs.github.com/en/actions/reference/runners/github-hosted-runners). Every job installs the project with the recorded constraints, runs the behavior tests and launches the real HTTP demo. A workflow configuration alone is not evidence of success: inspect [actual runs](https://github.com/lashonbakker-crypto/knowledge-task-api/actions).
 
 Public deployment, PostgreSQL, long-running lease renewal, model/agent behavior and external tool side effects have not been validated in this version.

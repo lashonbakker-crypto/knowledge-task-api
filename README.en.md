@@ -14,6 +14,8 @@ Submit a text document as a durable job, recover failed or abandoned attempts, a
 
 Implemented: Bearer authentication, tenant-scoped resource access, role-restricted administrative counts, concurrent request idempotency, bounded retries, expiring/fenced leases, atomic document/index publication, cancellation, durable event cursors, SSE replay, request limits and metadata-only logs.
 
+The SSE loop reads task state before each event page so a terminal transition between reads cannot close the stream ahead of its persisted event. Deterministic tests cover success, failure and cancellation on initial/resumed streams, plus a 201-event backlog. A [Chinese walkthrough](docs/01-sse-terminal-events.md) explains the race and provides a runnable exercise.
+
 ## Run locally
 
 ```bash

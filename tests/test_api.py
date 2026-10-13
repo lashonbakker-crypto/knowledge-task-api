@@ -91,6 +91,70 @@ def test_invalid_event_cursor_is_controlled(client, headers, cursor):
     assert client.get(path, headers={**headers, "Last-Event-ID": cursor}).status_code == 400
 
 
+@pytest.mark.parametrize("terminal", ["succeeded", "failed", "cancelled"])
+@pytest.mark.parametrize("resume", [False, True])
+def test_stream_delivers_terminal_event_when_task_finishes_during_poll(
+    client, headers, store, monkeypatch, terminal, resume
+):
+    task = create(client, headers)
+    lease = store.claim()
+    read_events = store.task_events
+    cursor = read_events("alice", task["id"])[-1]["id"] if resume else 0
+    transitioned = False
+
+    def read_then_finish(tenant, task_id, after=0, limit=100):
+        nonlocal transitioned
+        items = read_events(tenant, task_id, after, limit)
+        if not transitioned:
+            transitioned = True
+            if terminal == "succeeded":
+                assert store.complete(lease)
+            elif terminal == "failed":
+                assert store.fail(lease, retryable=False)
+            else:
+                assert store.cancel(tenant, task_id)["state"] == "cancelled"
+        return items
+
+    # Commit a real state/event transaction after the event-read snapshot.
+    monkeypatch.setattr(store, "task_events", read_then_finish)
+    response = client.get(
+        f"/v1/tasks/{task['id']}/stream",
+        headers={**headers, "Last-Event-ID": str(cursor)},
+    )
+    assert response.status_code == 200
+    blocks = [
+        dict(line.split(": ", 1) for line in block.splitlines() if ": " in line)
+        for block in response.text.split("\n\n")
+        if block and not block.startswith(":")
+    ]
+    expected = read_events("alice", task["id"], cursor)
+    assert [int(block["id"]) for block in blocks if "id" in block] == [
+        item["id"] for item in expected
+    ]
+    assert [block["event"] for block in blocks] == [
+        item["kind"] for item in expected
+    ] + ["end"]
+    assert json.loads(blocks[-2]["data"]) == expected[-1]
+    assert json.loads(blocks[-1]["data"]) == {"state": terminal}
+
+
+def test_terminal_stream_drains_multiple_event_pages(client, headers, store):
+    task = create(client, headers)
+    lease = store.claim()
+    with store.connection(write=True) as connection:
+        for number in range(198):
+            store.event(connection, task["id"], "progress", {"step": number}, store.clock())
+    assert store.complete(lease)
+    response = client.get(f"/v1/tasks/{task['id']}/stream", headers=headers)
+    assert response.status_code == 200
+    ids = [int(line[4:]) for line in response.text.splitlines() if line.startswith("id: ")]
+    expected = store.task_events("alice", task["id"], limit=300)
+    assert len(ids) == 201
+    assert ids == [item["id"] for item in expected]
+    assert response.text.count("event: end\n") == 1
+    assert response.text.endswith('event: end\ndata: {"state": "succeeded"}\n\n')
+
+
 def test_huge_query_cursor_does_not_reach_sqlite(client, headers):
     task = create(client, headers)
     assert client.get(f"/v1/tasks/{task['id']}/events", params={"after": 10**100}, headers=headers).status_code == 422
