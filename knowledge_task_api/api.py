@@ -186,11 +186,13 @@ def create_app(settings: Settings | None = None, *, store: Store | None = None) 
         async def emit():
             cursor, deadline = after, time.monotonic() + settings.stream_seconds
             while time.monotonic() < deadline and not await request.is_disconnected():
+                # Terminal state and its event commit together. Read state first,
+                # then drain events; a later transition is handled next poll.
+                task = await asyncio.to_thread(store.get_task, identity.tenant, task_id)
                 items = await asyncio.to_thread(store.task_events, identity.tenant, task_id, cursor, 100)
                 for item in items:
                     cursor = item["id"]
                     yield f"id: {cursor}\nevent: {item['kind']}\ndata: {json.dumps(item, ensure_ascii=True)}\n\n"
-                task = await asyncio.to_thread(store.get_task, identity.tenant, task_id)
                 if task["state"] in TERMINAL and len(items) < 100:
                     yield f"event: end\ndata: {json.dumps({'state': task['state']})}\n\n"
                     return
