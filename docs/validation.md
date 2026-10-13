@@ -24,6 +24,6 @@ The installed Starlette test transport emits one deprecation warning for its HTT
 
 ## Continuous integration
 
-The configured matrix uses Linux / Python 3.11, 3.12, 3.14 and Windows, macOS / Python 3.12. Every job installs the project with the recorded constraints, runs the behavior tests and launches the real HTTP demo. A workflow configuration alone is not evidence of success: inspect [actual runs](https://github.com/lashonbakker-crypto/knowledge-task-api/actions).
+The configured matrix uses Linux / Python 3.11, 3.12, 3.14, Windows / Python 3.12 and macOS 15 (Intel) / Python 3.12. GitHub reported capacity constraints for the ARM macOS runners during this maintenance round, so the standard Intel label is used to complete the same checks. This does not establish Apple Silicon coverage. Available labels: [official runner reference](https://docs.github.com/en/actions/reference/runners/github-hosted-runners). Every job installs the project with the recorded constraints, runs the behavior tests and launches the real HTTP demo. A workflow configuration alone is not evidence of success: inspect [actual runs](https://github.com/lashonbakker-crypto/knowledge-task-api/actions).
 
 Public deployment, PostgreSQL, long-running lease renewal, model/agent behavior and external tool side effects have not been validated in this version.
