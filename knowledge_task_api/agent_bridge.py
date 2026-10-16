@@ -78,6 +78,9 @@ class ReadOnlyToolBridge:
                 raise ValueError("query must contain 1 to 512 characters")
             if type(limit) is not int or not 1 <= limit <= 5:
                 raise ValueError("limit must be an integer between 1 and 5")
+            terms = re.findall(r"\w+", query, flags=re.UNICODE)
+            if not 1 <= len(terms) <= 12:
+                raise ValueError("query must contain 1 to 12 searchable tokens")
             payload = self._get("/v1/search", params={"q": query, "limit": limit})
             if payload.get("ok") is False:
                 return payload

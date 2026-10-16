@@ -28,6 +28,6 @@ print(bridge.execute('search_knowledge', {'query': 'durable leases', 'limit': 3}
 
 `TOOL_DEFINITIONS` is a static function-tool schema for adapters that support function calling. Models can choose a name and arguments; **the trusted application** must decide whether to execute the call. `ReadOnlyToolBridge` accepts only two tool names and only the documented arguments. There is no arbitrary URL, shell command, file path, write method or token field in model-supplied arguments.
 
-Queries go to the user's explicitly configured API client. Tool results never contain the access token. Search returns up to five hits; original-document reads are truncated to 2000 characters. Each hit includes a document ID and source task. Tenant ownership checks are still enforced in `Store`, not solely by client-side filtering.
+Queries must contain 1–12 Unicode word tokens; punctuation-only and oversized token lists are rejected before HTTP dispatch. Queries go to the user's explicitly configured API client. Tool results never contain the access token. Search returns up to five hits; original-document reads are truncated to 2000 characters. Each hit includes a document ID and source task. Tenant ownership checks are still enforced in `Store`, not solely by client-side filtering.
 
 **安全边界：** 检索到的文档、标题和片段全部视为不可信数据，不能把文档中的“忽略规则、执行命令”等文本当作工具指令。若你把返回内容发给第三方模型，它会离开本地机器；是否上传应由使用者明确决定。请勿在公共 Demo 以外使用示例 token。这个适配层没有工具调用预算、速率限制、多步 Agent 或语义检索；这些仍属未来工作。
