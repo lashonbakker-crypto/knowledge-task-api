@@ -1,5 +1,7 @@
 ## Unreleased
 
+- Validate 1–12 searchable Unicode tokens in agent tool queries before HTTP calls, with negative and multilingual regression tests.
+
 - Add an opt-in, read-only function-tool bridge for tenant-scoped search and bounded source-document reads. No model execution or new runtime dependency.
 - Add real-SQLite/TestClient demo and regression tests for tenant isolation, invalid tool arguments, source truncation and refusal of model-provided writes.
 
