@@ -1,3 +1,8 @@
+## Unreleased
+
+- Add an opt-in, read-only function-tool bridge for tenant-scoped search and bounded source-document reads. No model execution or new runtime dependency.
+- Add real-SQLite/TestClient demo and regression tests for tenant isolation, invalid tool arguments, source truncation and refusal of model-provided writes.
+
 # Changelog
 
 ## 0.2.0 — 2026-10-16
