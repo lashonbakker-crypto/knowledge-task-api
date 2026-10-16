@@ -25,6 +25,10 @@
 | SSE 终态竞态修复 | 结束流前交付终态事件；覆盖首次连接、续读和多页事件，[复现与练习](docs/01-sse-terminal-events.md) |
 | 输入限制与日志 | 写请求先检查真实字节数；日志包含请求 ID、状态和耗时 |
 
+## 只读 Agent 工具适配
+
+新增[只读工具适配器](docs/03-agent-tool-bridge.md)：把现有搜索、原文读取封装成 `search_knowledge` 和 `read_knowledge_source` 两个可供外部模型选择的函数描述，后端仍执行租户鉴权，工具代码只发 GET，不允许模型指定 URL、写入或携带 token。`python scripts/agent_bridge_demo.py` 使用真实 SQLite 和测试 HTTP 客户端演示，无需调用任何模型。**这不是完整 Agent。**
+
 ## 本地运行
 
 ```bash

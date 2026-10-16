@@ -18,6 +18,10 @@ The SSE loop reads task state before each event page so a terminal transition be
 
 Long processing can extend a live lease without spending another attempt. Expired, cancelled or replaced owners cannot renew or publish. `create_app(..., processor=callback)` provides a Python processing hook; the HTTP payload stays the same. The [lease walkthrough](docs/02-lease-heartbeats.md) and `scripts/lease_demo.py` demonstrate the boundaries with real SQLite and a controlled clock. Heartbeats do not impose a processing timeout or protect external side effects.
 
+## Read-only agent tool integration
+
+The [read-only tool bridge](docs/03-agent-tool-bridge.md) exposes two function-tool schemas, `search_knowledge` and `read_knowledge_source`, backed by existing authenticated API GET endpoints. Model-provided arguments cannot choose URLs, tokens or write operations. Run `python scripts/agent_bridge_demo.py` to verify real SQLite retrieval and tenant isolation without calling a model. **This is not a complete agent runtime.**
+
 ## Run locally
 
 ```bash
