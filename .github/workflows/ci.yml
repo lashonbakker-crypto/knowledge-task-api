@@ -45,3 +45,5 @@ jobs:
         run: python -m pytest
       - name: Run real HTTP demonstration
         run: python scripts/demo.py
+      - name: Run deterministic heartbeat exercise
+        run: python scripts/lease_demo.py

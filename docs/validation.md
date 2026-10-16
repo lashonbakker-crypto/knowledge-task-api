@@ -26,4 +26,13 @@ The installed Starlette test transport emits one deprecation warning for its HTT
 
 The configured matrix uses Linux / Python 3.11, 3.12, 3.14, Windows / Python 3.12 and macOS 15 (Intel) / Python 3.12. GitHub reported capacity constraints for the ARM macOS runners during this maintenance round, so the standard Intel label is used to complete the same checks. This does not establish Apple Silicon coverage. Available labels: [official runner reference](https://docs.github.com/en/actions/reference/runners/github-hosted-runners). Every job installs the project with the recorded constraints, runs the behavior tests and launches the real HTTP demo. A workflow configuration alone is not evidence of success: inspect [actual runs](https://github.com/lashonbakker-crypto/knowledge-task-api/actions).
 
-Public deployment, PostgreSQL, long-running lease renewal, model/agent behavior and external tool side effects have not been validated in this version.
+Public deployment, PostgreSQL, hard execution timeouts, model/agent behavior and external tool side effects have not been validated in this version.
+
+## Lease heartbeats — 2026-10-16
+
+- Local Python 3.12.14 / Linux: **70 behavior cases passed**, including live renewal past the initial deadline, rejection at the exact expiry boundary, takeover fencing, cancellation during processing, failed renewal, stopping, and invalid duration configuration.
+- `python scripts/lease_demo.py` used real SQLite and a real heartbeat thread with an explicitly advanced clock: the long task completed in one attempt after its original deadline; an obsolete worker and a cancelled worker could neither renew nor publish. This is a deterministic correctness exercise, not a real-time latency benchmark.
+- `python scripts/demo.py` passed the separate genuine HTTP flow with the default processing path. The injected long callback is tested locally through Worker rather than over HTTP.
+- Reproduced the original `NaN` lease bug against the old source: SQLite stored a NULL deadline, preventing both recovery and completion. The new validation refuses it before creating a database.
+- No schema migration or runtime dependency changes. A live blocked callback can continue heartbeating; hard deadlines and external-side-effect guarantees remain out of scope. The existing test-transport deprecation warning remains.
+- Cross-platform results for this change must be checked in the actual Actions run linked above.

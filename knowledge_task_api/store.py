@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+import math
 import re
 import sqlite3
 import time
@@ -65,6 +66,8 @@ class Lease:
 
 class Store:
     def __init__(self, database: Path, *, clock=time.time, lease_seconds=30):
+        if not isinstance(lease_seconds, (int, float)) or isinstance(lease_seconds, bool) or not math.isfinite(lease_seconds) or lease_seconds <= 0:
+            raise ValueError("lease_seconds must be finite and positive")
         self.database = Path(database)
         self.database.parent.mkdir(parents=True, exist_ok=True)
         self.clock = clock
@@ -195,6 +198,21 @@ class Store:
                 (document_id, now, lease.id),
             )
             self.event(connection, lease.id, "succeeded", {"document_id": document_id}, now)
+            return True
+
+    def renew(self, lease):
+        """Extend only a live, current lease; never revive an expired owner."""
+        with self.connection(write=True) as connection:
+            now = self.clock()
+            row = self.current_lease(connection, lease, now)
+            if row is None:
+                return False
+            deadline = max(row["lease_until"], now + self.lease_seconds)
+            connection.execute(
+                "UPDATE tasks SET lease_until=?,updated_at=? WHERE id=?",
+                (deadline, now, lease.id),
+            )
+            self.event(connection, lease.id, "lease_renewed", {"attempt": row["attempt"], "lease_until": deadline}, now)
             return True
 
     def fail(self, lease, *, retryable=True):

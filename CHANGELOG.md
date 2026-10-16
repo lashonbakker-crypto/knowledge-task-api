@@ -1,6 +1,12 @@
 # Changelog
 
-## Unreleased — 2026-10-13
+## 0.2.0 — 2026-10-16
+
+- Add fenced lease renewal and worker heartbeats, durable `lease_renewed` events, and an optional Python processing hook. Renewal keeps the attempt and token; expired or cancelled ownership cannot be revived.
+- Refuse nonfinite, nonpositive or boolean durations before database creation; `NaN` previously produced an unrecoverable running task with a NULL deadline. Validate request-size configuration as a positive integer.
+- Add deterministic long-processing, failed-heartbeat, cancellation, stopping and configuration regressions, plus a runnable real-SQLite heartbeat exercise and a Chinese tutorial. HTTP routes and schema version remain compatible.
+
+## Maintenance — 2026-10-13
 
 - Use the standard `macos-15-intel` CI runner after GitHub reported ARM capacity constraints. The same tests and real HTTP demo run there; Apple Silicon coverage is not claimed for this round.
 - Fix an SSE race that could send `end` before the persisted terminal event when a task completed, failed, or was cancelled between the event and state reads. Read task state before each event page and only end after draining a terminal task's backlog.

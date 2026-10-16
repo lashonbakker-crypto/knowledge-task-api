@@ -12,9 +12,11 @@ Submit a text document as a durable job, recover failed or abandoned attempts, a
 
 **Python 3.11+ · FastAPI · SQLite WAL · FTS5 · pytest.**
 
-Implemented: Bearer authentication, tenant-scoped resource access, role-restricted administrative counts, concurrent request idempotency, bounded retries, expiring/fenced leases, atomic document/index publication, cancellation, durable event cursors, SSE replay, request limits and metadata-only logs.
+Implemented: Bearer authentication, tenant-scoped resource access, role-restricted administrative counts, concurrent request idempotency, bounded retries, expiring/fenced leases with worker heartbeats, atomic document/index publication, cancellation, durable event cursors, SSE replay, request limits and metadata-only logs.
 
 The SSE loop reads task state before each event page so a terminal transition between reads cannot close the stream ahead of its persisted event. Deterministic tests cover success, failure and cancellation on initial/resumed streams, plus a 201-event backlog. A [Chinese walkthrough](docs/01-sse-terminal-events.md) explains the race and provides a runnable exercise.
+
+Long processing can extend a live lease without spending another attempt. Expired, cancelled or replaced owners cannot renew or publish. `create_app(..., processor=callback)` provides a Python processing hook; the HTTP payload stays the same. The [lease walkthrough](docs/02-lease-heartbeats.md) and `scripts/lease_demo.py` demonstrate the boundaries with real SQLite and a controlled clock. Heartbeats do not impose a processing timeout or protect external side effects.
 
 ## Run locally
 
@@ -33,6 +35,7 @@ Stop that server before running the isolated real-HTTP demo:
 
 ```bash
 python scripts/demo.py
+python scripts/lease_demo.py
 ```
 
 The script launches a temporary server and database, checks job submission, idempotent replay, conflicting requests, background indexing, retrieval, tenant boundaries and SSE, then terminates the server. No model account or external database is needed.
@@ -61,13 +64,14 @@ Status codes: 401 authentication; 403 administrator role; 404 missing or foreign
 ```bash
 python -m pytest
 python scripts/demo.py
+python scripts/lease_demo.py
 ```
 
 See [actual validation](docs/validation.md) and [Actions](https://github.com/lashonbakker-crypto/knowledge-task-api/actions). Tests exercise real SQLite transactions, concurrent claims, an abruptly exited process, rollback, retries, fencing, API access and event replay.
 
 Normal startup requires `KTA_KEYS_JSON`. The shape is shown in [.env.example](.env.example), which is documentation and is not loaded automatically. `KTA_DATABASE` selects the database file. Configure private access tokens and HTTPS before deployment. Registration, token rotation and OAuth are not implemented.
 
-SQLite is a single-host starting point. Attempts may execute more than once after a crash; fencing and transactions constrain publication, and do not provide general exactly-once execution. Documents allow up to 64000 characters; JSON write bodies up to 256 KiB; queries up to 12 tokens and 20 returned hits. SSE connections close after at most 30 seconds and can reconnect with a cursor.
+SQLite is a single-host starting point. Attempts may execute more than once after a crash; fencing and transactions constrain publication, and do not provide general exactly-once execution. Documents allow up to 64000 characters; JSON write bodies up to 256 KiB; queries up to 12 tokens and 20 returned hits. Heartbeats run at one third of the lease duration by default. Nonfinite or nonpositive durations are refused before database creation. Stopping prevents publication and waits up to five seconds; arbitrary callbacks need their own timeouts. SSE connections close after at most 30 seconds and can reconnect with a cursor.
 
 Unicode61 lexical tokenization has limited behavior for continuous Chinese text and does not provide semantic retrieval. FTS ranking statistics share the database; row access is tenant-filtered, but statistical isolation is not promised. Rate limits, quotas, fair scheduling, PostgreSQL, vector search and model calls remain roadmap work. This MVP is not ready for an unrestricted public service.
 

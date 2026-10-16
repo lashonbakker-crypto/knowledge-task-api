@@ -17,6 +17,7 @@
 | Bearer token 与租户资源访问 | 文档、任务、检索和事件都检查归属；普通用户不能读取管理员统计 |
 | 并发幂等请求 | 同租户同 key 与相同内容返回同任务；不同内容返回 409 |
 | 持久化任务与重试 | 排队、执行、成功、失败、取消；有限次数与指数退避 |
+| 心跳续租 | 长处理期间定期延长有效租约，失租后拒绝发布；[原理与练习](docs/02-lease-heartbeats.md) |
 | 租约与 fencing token | 过期或被取消的 worker 不能写回文档；发布与索引在一个事务中 |
 | 崩溃恢复 | 进程退出后任务仍保留；过期租约可重新领取 |
 | 检索与来源片段 | FTS5 词法匹配，返回文档 ID、来源任务、原文片段 |
@@ -41,9 +42,10 @@ Windows PowerShell 用 `.\.venv\Scripts\Activate.ps1` 激活环境。`--demo` �
 
 ```bash
 python scripts/demo.py
+python scripts/lease_demo.py
 ```
 
-脚本启动独立的真实 HTTP 服务，验证提交、幂等、冲突、后台入库、检索、跨租户拒绝及 SSE，然后关闭服务。临时数据库会自动清理。
+脚本启动独立的真实 HTTP 服务，验证提交、幂等、冲突、后台入库、检索、跨租户拒绝及 SSE，然后关闭服务。临时数据库会自动清理。第二个脚本用受控时钟和真实心跳线程验证超过原始租约期限的任务、过期接管与取消。
 
 ## 提交一份文档
 
@@ -79,6 +81,7 @@ curl -X POST http://127.0.0.1:8080/v1/documents \
 ```bash
 python -m pytest
 python scripts/demo.py
+python scripts/lease_demo.py
 ```
 
 测试包含真实 SQLite 事务、并发请求、租约边界、崩溃恢复、发布回滚、访问边界和 HTTP 接口。[验证记录](docs/validation.md)只记录实际执行的环境与结果。GitHub CI 是否通过以 [Actions](https://github.com/lashonbakker-crypto/knowledge-task-api/actions) 为准。
@@ -87,7 +90,7 @@ python scripts/demo.py
 
 常规启动必须设置 `KTA_KEYS_JSON`，否则拒绝启动。格式见 [.env.example](.env.example)；应用读取进程环境，不自动加载该文件。可用 `KTA_DATABASE` 选择数据库路径。部署前使用独立访问 token 和 HTTPS。当前 token 配置由运维管理，尚无注册、轮换或 OAuth 服务。
 
-SQLite 适合这一阶段的单机、小规模验证。执行是**至少一次**的尝试语义，旧任务可能重复执行；fencing 与事务限制结果发布，不能据此声称通用的 exactly-once。文档最大 64000 字符，JSON 写请求最大 256 KiB；查询最多 12 个词，返回最多 20 条。SSE 单次最多 30 秒，客户端可带游标重连。
+SQLite 适合这一阶段的单机、小规模验证。执行是**至少一次**的尝试语义，旧任务可能重复执行；fencing 与事务限制结果发布，不能据此声称通用的 exactly-once。文档最大 64000 字符，JSON 写请求最大 256 KiB；查询最多 12 个词，返回最多 20 条。心跳默认每个租约周期的三分之一续租，取消或失租仍会拒绝发布；处理器扩展见[续租教程](docs/02-lease-heartbeats.md)。SSE 单次最多 30 秒，客户端可带游标重连。
 
 词法搜索按 Unicode61 分词，中文连续文本的效果有限；它不理解语义。FTS 排序统计共享同一数据库，资源查询有租户过滤，但没有提供强统计隔离。限流、配额、PostgreSQL、任务公平性、向量检索和模型调用均列在后续路线中。本版不要承载公开不受限的大规模服务。
 

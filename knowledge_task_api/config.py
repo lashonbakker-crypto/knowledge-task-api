@@ -3,6 +3,7 @@
 import hashlib
 import hmac
 import json
+import math
 import os
 import re
 from dataclasses import dataclass
@@ -40,8 +41,11 @@ class Settings:
             if fingerprint in fingerprints:
                 raise ValueError("access tokens must be distinct")
             fingerprints.add(fingerprint)
-        if self.lease_seconds <= 0 or self.max_request_bytes < 1 or self.stream_seconds <= 0:
-            raise ValueError("limits must be positive")
+        for duration in (self.lease_seconds, self.stream_seconds):
+            if not isinstance(duration, (int, float)) or isinstance(duration, bool) or not math.isfinite(duration) or duration <= 0:
+                raise ValueError("durations must be finite and positive")
+        if type(self.max_request_bytes) is not int or self.max_request_bytes < 1:
+            raise ValueError("max_request_bytes must be a positive integer")
 
     @classmethod
     def from_env(cls):
