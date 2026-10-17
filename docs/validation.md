@@ -6,6 +6,7 @@
 - All five runnable demonstrations passed. `capacity_demo.py` starts a genuine HTTP server with a paused consumer, tenant limit 2 and total limit 3. Alice's third task gets 429, Bob's first is accepted and second gets global 429, replay remains 202, changed content remains 409, and cancellation allows the rejected key to be accepted.
 - Installed version 0.4.0 was built with unchanged dependency constraints. Existing schema-version-1 databases get an additive tenant/state index; this is not a destructive migration. The pre-existing Starlette test-transport deprecation remains.
 - These are admission correctness checks, not throughput measurements, fair-scheduling evidence, rate limits or historical storage bounds. Submitting processes sharing a database must use consistent limits.
+- Implementation commit `25bf0bf62ee13a4a5702e7117b3b2e59547ca5e0` passed all five jobs in [Actions run 39078917166](https://github.com/lashonbakker-crypto/knowledge-task-api/actions/runs/39078917166): Linux / Python 3.11, 3.12, 3.14; Windows / 3.12; Intel macOS / 3.12. Each job passed 121 cases and all five demonstrations, including the new real HTTP capacity exercise. Job summaries and Linux, Windows and macOS logs were inspected. The installed API also passed a separate isolated 0.4.0 / 429 / replay smoke check outside the source tree.
 
 ## Initial local run — 2026-10-13
 
