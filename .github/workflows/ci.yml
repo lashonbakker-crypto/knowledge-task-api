@@ -51,3 +51,5 @@ jobs:
         run: python scripts/agent_bridge_demo.py
       - name: Run deterministic processing-budget exercise
         run: python scripts/budget_demo.py
+      - name: Run real HTTP capacity exercise
+        run: python scripts/capacity_demo.py

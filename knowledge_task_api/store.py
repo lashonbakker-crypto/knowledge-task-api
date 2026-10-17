@@ -31,6 +31,7 @@ CREATE TABLE IF NOT EXISTS tasks (
 );
 CREATE INDEX IF NOT EXISTS tasks_ready ON tasks(state,next_run,seq);
 CREATE INDEX IF NOT EXISTS tasks_expired ON tasks(state,lease_until);
+CREATE INDEX IF NOT EXISTS tasks_tenant_state ON tasks(tenant,state);
 CREATE TABLE IF NOT EXISTS documents (
     seq INTEGER PRIMARY KEY AUTOINCREMENT, id TEXT UNIQUE NOT NULL,
     tenant TEXT NOT NULL, title TEXT NOT NULL, body TEXT NOT NULL,
@@ -55,6 +56,10 @@ class Missing(LookupError):
     pass
 
 
+class QueueFull(RuntimeError):
+    """Admission refused without revealing another tenant's queue contents."""
+
+
 @dataclass(frozen=True)
 class Lease:
     id: str
@@ -65,9 +70,15 @@ class Lease:
 
 
 class Store:
-    def __init__(self, database: Path, *, clock=time.time, lease_seconds=30):
+    def __init__(self, database: Path, *, clock=time.time, lease_seconds=30,
+                 max_pending_per_tenant=100, max_pending_total=1000):
         if not isinstance(lease_seconds, (int, float)) or isinstance(lease_seconds, bool) or not math.isfinite(lease_seconds) or lease_seconds <= 0:
             raise ValueError("lease_seconds must be finite and positive")
+        for limit in (max_pending_per_tenant, max_pending_total):
+            if type(limit) is not int or limit < 1:
+                raise ValueError("pending task limits must be positive integers")
+        self.max_pending_per_tenant = max_pending_per_tenant
+        self.max_pending_total = max_pending_total
         self.database = Path(database)
         self.database.parent.mkdir(parents=True, exist_ok=True)
         self.clock = clock
@@ -119,6 +130,16 @@ class Store:
                 if row["request_hash"] != digest:
                     raise Conflict("idempotency key already used for a different request")
                 return self.public(row), True
+            # The admission check and insert share the same SQLite write lock.
+            # Replays and conflicts above do not consume another pending slot.
+            tenant_pending = connection.execute(
+                "SELECT COUNT(*) FROM tasks WHERE tenant=? AND state IN ('queued','running')", (tenant,)
+            ).fetchone()[0]
+            total_pending = connection.execute(
+                "SELECT COUNT(*) FROM tasks WHERE state IN ('queued','running')"
+            ).fetchone()[0]
+            if tenant_pending >= self.max_pending_per_tenant or total_pending >= self.max_pending_total:
+                raise QueueFull("pending task capacity reached; retry later")
             now = self.clock()
             task_id = uuid.uuid4().hex
             connection.execute(

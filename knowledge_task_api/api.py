@@ -18,7 +18,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from . import __version__
 from .config import Principal, Settings
-from .store import Conflict, Missing, Store, TERMINAL
+from .store import Conflict, Missing, QueueFull, Store, TERMINAL
 from .worker import Worker
 
 logger = logging.getLogger("knowledge_task_api.requests")
@@ -100,7 +100,9 @@ class RequestGuard:
 def create_app(settings: Settings | None = None, *, store: Store | None = None,
                processor=None, processor_with_context=None) -> FastAPI:
     settings = settings or Settings.from_env()
-    store = store or Store(settings.database, lease_seconds=settings.lease_seconds)
+    store = store or Store(settings.database, lease_seconds=settings.lease_seconds,
+                           max_pending_per_tenant=settings.max_pending_per_tenant,
+                           max_pending_total=settings.max_pending_total)
     worker = Worker(store, processor=processor, processor_with_context=processor_with_context,
                     max_processing_seconds=settings.processing_seconds)
 
@@ -134,6 +136,10 @@ def create_app(settings: Settings | None = None, *, store: Store | None = None,
     @app.exception_handler(Conflict)
     async def conflict_handler(request, error):
         return JSONResponse({"detail": str(error)}, status_code=409)
+
+    @app.exception_handler(QueueFull)
+    async def queue_full_handler(request, error):
+        return JSONResponse({"detail": str(error)}, status_code=429, headers={"Retry-After": "1"})
 
     @app.exception_handler(sqlite3.OperationalError)
     async def storage_handler(request, error):

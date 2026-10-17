@@ -1,5 +1,12 @@
 # Validation record
 
+## Queue capacity — 2026-10-17
+
+- Local Python 3.12.14 / Linux: **121 behavior cases passed**. New cases cover independent concurrent database connections, tenant/global bounds, full-queue replay/conflict ordering, rejection without events or key reservation, terminal-state capacity release, persisted delayed retries and configuration validation.
+- All five runnable demonstrations passed. `capacity_demo.py` starts a genuine HTTP server with a paused consumer, tenant limit 2 and total limit 3. Alice's third task gets 429, Bob's first is accepted and second gets global 429, replay remains 202, changed content remains 409, and cancellation allows the rejected key to be accepted.
+- Installed version 0.4.0 was built with unchanged dependency constraints. Existing schema-version-1 databases get an additive tenant/state index; this is not a destructive migration. The pre-existing Starlette test-transport deprecation remains.
+- These are admission correctness checks, not throughput measurements, fair-scheduling evidence, rate limits or historical storage bounds. Submitting processes sharing a database must use consistent limits.
+
 ## Initial local run — 2026-10-13
 
 - Python 3.12 / Linux; SQLite 3.53.1.

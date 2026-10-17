@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.0 — 2026-10-17
+
+- Bound pending task admission per tenant (default 100) and globally (1000). Count queued/running work and insert under one SQLite write transaction, with an additive tenant/state index for existing version-1 databases.
+- Return 429 and advisory `Retry-After: 1` without creating a task/event or reserving the rejected key. Preserve idempotent replay and 409 conflicts at capacity. Terminal states free slots; delayed retries continue to count.
+- Add positive-integer configuration, concurrent independent-connection regressions, a real HTTP capacity demo and bilingual guidance. This is admission control; fair scheduling, rate limits and storage retention are still future work.
+
 ## 0.3.0 — 2026-10-17
 
 - Add a default 300-second monotonic processing budget per claimed attempt, terminal fenced `processing_timeout`, and deadline rechecking inside the publication transaction. Expired ownership cannot terminate a replacement.

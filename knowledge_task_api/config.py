@@ -26,6 +26,8 @@ class Settings:
     max_request_bytes: int = 256 * 1024
     stream_seconds: float = 30
     processing_seconds: float = 300
+    max_pending_per_tenant: int = 100
+    max_pending_total: int = 1000
 
     def __post_init__(self):
         if not self.keys:
@@ -50,6 +52,9 @@ class Settings:
                 raise ValueError("durations must be finite and positive")
         if type(self.max_request_bytes) is not int or self.max_request_bytes < 1:
             raise ValueError("max_request_bytes must be a positive integer")
+        for limit in (self.max_pending_per_tenant, self.max_pending_total):
+            if type(limit) is not int or limit < 1:
+                raise ValueError("pending task limits must be positive integers")
 
     @classmethod
     def from_env(cls):
@@ -63,7 +68,9 @@ class Settings:
         except (ValueError, TypeError, KeyError) as error:
             raise ValueError("invalid KTA_KEYS_JSON configuration") from error
         return cls(Path(os.environ.get("KTA_DATABASE", "data/knowledge.sqlite3")), keys,
-                   processing_seconds=processing_seconds_from_env())
+                   processing_seconds=processing_seconds_from_env(),
+                   max_pending_per_tenant=pending_limit_from_env("KTA_MAX_PENDING_PER_TENANT", 100),
+                   max_pending_total=pending_limit_from_env("KTA_MAX_PENDING_TOTAL", 1000))
 
     @classmethod
     def demo(cls, database: Path, *, worker_enabled=True):
@@ -91,3 +98,13 @@ def processing_seconds_from_env():
         return seconds
     except ValueError as error:
         raise ValueError("KTA_PROCESSING_SECONDS must be finite, positive and within threading.TIMEOUT_MAX") from error
+
+
+def pending_limit_from_env(name, default):
+    try:
+        value = int(os.environ.get(name, str(default)))
+        if value < 1:
+            raise ValueError
+        return value
+    except ValueError as error:
+        raise ValueError(f"{name} must be a positive integer") from error

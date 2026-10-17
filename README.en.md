@@ -24,6 +24,8 @@ The [read-only tool bridge](docs/03-agent-tool-bridge.md) exposes two function-t
 
 Each attempt now has a monotonic processing budget (300 seconds by default). Live timed-out ownership is revoked and records terminal `processing_timeout`; it is not automatically retried. Publication checks the deadline again after acquiring the database lock. Use `processor_with_context(lease, context)` for cooperative checkpoints. This does not forcibly terminate arbitrary callbacks. See the [bilingual processing-budget guide](docs/04-processing-budgets.md).
 
+Pending work is bounded to 100 tasks per tenant and 1000 globally by default. Admission counts queued and running tasks, including scheduled retries, inside the insertion transaction. A full queue returns 429 with an advisory `Retry-After: 1`; existing idempotent requests still replay and changed payloads still return 409. Configure positive integers `KTA_MAX_PENDING_PER_TENANT` and `KTA_MAX_PENDING_TOTAL` for the normal server. Terminal tasks free capacity. Fair scheduling, request-rate limits and historical storage retention remain future work. See the [bilingual capacity guide](docs/05-queue-capacity.md).
+
 ## Run locally
 
 ```bash
@@ -43,6 +45,7 @@ Stop that server before running the isolated real-HTTP demo:
 python scripts/demo.py
 python scripts/lease_demo.py
 python scripts/budget_demo.py
+python scripts/capacity_demo.py
 ```
 
 The script launches a temporary server and database, checks job submission, idempotent replay, conflicting requests, background indexing, retrieval, tenant boundaries and SSE, then terminates the server. No model account or external database is needed.
@@ -64,7 +67,7 @@ The script launches a temporary server and database, checks job submission, idem
 
 Send `Authorization: Bearer TOKEN`. Submitting an identical decoded document with the same tenant and idempotency key returns the original task and `Idempotency-Replayed: true`; changing its content returns 409. A successful task includes `result_document_id`. The JSON payload accepts `title`, `text` and optional `max_attempts` (1–5, default 3).
 
-Status codes: 401 authentication; 403 administrator role; 404 missing or foreign resource; 409 conflict; 413 body limit; 422 invalid parameters; 503 unavailable storage.
+Status codes: 401 authentication; 403 administrator role; 404 missing or foreign resource; 409 conflict; 413 body limit; 422 invalid parameters; 429 pending capacity reached; 503 unavailable storage.
 
 ## Tests and configuration
 
@@ -81,6 +84,6 @@ Normal startup requires `KTA_KEYS_JSON`. The shape is shown in [.env.example](.e
 
 SQLite is a single-host starting point. Attempts may execute more than once after a crash; fencing and transactions constrain publication, and do not provide general exactly-once execution. Documents allow up to 64000 characters; JSON write bodies up to 256 KiB; queries up to 12 tokens and 20 returned hits. Heartbeats run at one third of the lease duration by default. Nonfinite or nonpositive durations are refused before database creation. Stopping prevents publication and waits up to five seconds; arbitrary callbacks need their own timeouts. SSE connections close after at most 30 seconds and can reconnect with a cursor.
 
-Unicode61 lexical tokenization has limited behavior for continuous Chinese text and does not provide semantic retrieval. FTS ranking statistics share the database; row access is tenant-filtered, but statistical isolation is not promised. Rate limits, quotas, fair scheduling, PostgreSQL, vector search and model calls remain roadmap work. This MVP is not ready for an unrestricted public service.
+Unicode61 lexical tokenization has limited behavior for continuous Chinese text and does not provide semantic retrieval. FTS ranking statistics share the database; row access is tenant-filtered, but statistical isolation is not promised. Request-rate limits, fair scheduling, PostgreSQL, vector search and model calls remain roadmap work. This MVP is not ready for an unrestricted public service.
 
 The initial version was created with AI assistance. Record your actual modifications and experiments using the [devlog template](docs/devlog-template.md); resume claims should reflect real contributions and evidence. Original implementation under [MIT](LICENSE). References: [primary documentation](docs/references.md).
