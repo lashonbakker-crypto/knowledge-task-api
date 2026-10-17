@@ -163,7 +163,7 @@ def test_parallel_workers_finish_real_index_jobs(store):
 
 def test_worker_retries_a_transient_storage_error(store, monkeypatch):
     task = submit(store)
-    def unavailable(lease):
+    def unavailable(lease, **kwargs):
         raise sqlite3.OperationalError("database is locked")
     monkeypatch.setattr(store, "complete", unavailable)
     assert Worker(store).run_once()

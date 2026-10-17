@@ -1,11 +1,14 @@
-## Unreleased
+# Changelog
+
+## 0.3.0 — 2026-10-17
+
+- Add a default 300-second monotonic processing budget per claimed attempt, terminal fenced `processing_timeout`, and deadline rechecking inside the publication transaction. Expired ownership cannot terminate a replacement.
+- Keep legacy processors compatible and add optional cooperative contexts, explicit environment configuration and a runnable deterministic budget exercise. No forced thread termination, schema migration or external-side-effect guarantee.
 
 - Validate 1–12 searchable Unicode tokens in agent tool queries before HTTP calls, with negative and multilingual regression tests.
 
 - Add an opt-in, read-only function-tool bridge for tenant-scoped search and bounded source-document reads. No model execution or new runtime dependency.
 - Add real-SQLite/TestClient demo and regression tests for tenant isolation, invalid tool arguments, source truncation and refusal of model-provided writes.
-
-# Changelog
 
 ## 0.2.0 — 2026-10-16
 

@@ -3,11 +3,12 @@
 import argparse
 import logging
 from pathlib import Path
+from dataclasses import replace
 
 import uvicorn
 
 from .api import create_app
-from .config import Settings
+from .config import Settings, processing_seconds_from_env
 from .store import Store
 from .worker import Worker
 
@@ -22,8 +23,12 @@ def main():
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(message)s")
     if args.command == "worker":
-        store = Store(args.database or Path("data/knowledge.sqlite3"))
-        worker = Worker(store)
+        try:
+            budget = processing_seconds_from_env()
+            store = Store(args.database or Path("data/knowledge.sqlite3"))
+            worker = Worker(store, max_processing_seconds=budget)
+        except ValueError as error:
+            parser.error(str(error))
         try:
             worker.run()
         except KeyboardInterrupt:
@@ -37,7 +42,7 @@ def main():
     else:
         try:
             original = Settings.from_env()
-            settings = Settings(args.database or original.database, original.keys)
+            settings = replace(original, database=args.database or original.database)
         except ValueError as error:
             parser.error(str(error))
     uvicorn.run(create_app(settings), host=args.host, port=args.port, access_log=False)

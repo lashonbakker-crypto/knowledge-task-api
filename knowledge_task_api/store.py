@@ -179,10 +179,13 @@ class Store:
             (lease.id, lease.tenant, lease.token, now),
         ).fetchone()
 
-    def complete(self, lease):
+    def complete(self, lease, *, deadline=None, deadline_clock=time.monotonic):
         with self.connection(write=True) as connection:
             now = self.clock()
             if not self.current_lease(connection, lease, now):
+                return False
+            # Recheck the processing budget after acquiring the publication lock.
+            if deadline is not None and deadline_clock() >= deadline:
                 return False
             document_id = uuid.uuid4().hex
             cursor = connection.execute(
@@ -216,6 +219,14 @@ class Store:
             return True
 
     def fail(self, lease, *, retryable=True):
+        code = "temporary_index_failure" if retryable else "index_failure"
+        return self._fail(lease, retryable=retryable, code=code)
+
+    def timeout(self, lease):
+        """Revoke a live owner and record a terminal processing-budget failure."""
+        return self._fail(lease, retryable=False, code="processing_timeout")
+
+    def _fail(self, lease, *, retryable, code):
         with self.connection(write=True) as connection:
             now = self.clock()
             row = self.current_lease(connection, lease, now)
@@ -224,7 +235,6 @@ class Store:
             retry = retryable and row["attempt"] < row["max_attempts"]
             state = "queued" if retry else "failed"
             delay = min(60, 2 ** (row["attempt"] - 1)) if retry else 0
-            code = "temporary_index_failure" if retryable else "index_failure"
             connection.execute(
                 "UPDATE tasks SET state=?,lease_until=NULL,lease_token=lease_token+1,next_run=?,error_code=?,updated_at=? WHERE id=?",
                 (state, now + delay, code, now, lease.id),

@@ -49,3 +49,5 @@ jobs:
         run: python scripts/lease_demo.py
       - name: Run isolated read-only agent tool demonstration
         run: python scripts/agent_bridge_demo.py
+      - name: Run deterministic processing-budget exercise
+        run: python scripts/budget_demo.py

@@ -97,10 +97,12 @@ class RequestGuard:
             logger.info(json.dumps({"request_id": request_id, "method": scope["method"], "route": route, "status": status, "duration_ms": round((time.perf_counter()-started)*1000, 3)}))
 
 
-def create_app(settings: Settings | None = None, *, store: Store | None = None, processor=None) -> FastAPI:
+def create_app(settings: Settings | None = None, *, store: Store | None = None,
+               processor=None, processor_with_context=None) -> FastAPI:
     settings = settings or Settings.from_env()
     store = store or Store(settings.database, lease_seconds=settings.lease_seconds)
-    worker = Worker(store, processor=processor)
+    worker = Worker(store, processor=processor, processor_with_context=processor_with_context,
+                    max_processing_seconds=settings.processing_seconds)
 
     @asynccontextmanager
     async def lifespan(app):

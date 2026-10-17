@@ -6,6 +6,7 @@ import json
 import math
 import os
 import re
+import threading
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -24,6 +25,7 @@ class Settings:
     lease_seconds: float = 30
     max_request_bytes: int = 256 * 1024
     stream_seconds: float = 30
+    processing_seconds: float = 300
 
     def __post_init__(self):
         if not self.keys:
@@ -41,7 +43,9 @@ class Settings:
             if fingerprint in fingerprints:
                 raise ValueError("access tokens must be distinct")
             fingerprints.add(fingerprint)
-        for duration in (self.lease_seconds, self.stream_seconds):
+        if isinstance(self.processing_seconds, (int, float)) and self.processing_seconds > threading.TIMEOUT_MAX:
+            raise ValueError("processing_seconds exceeds threading.TIMEOUT_MAX")
+        for duration in (self.lease_seconds, self.stream_seconds, self.processing_seconds):
             if not isinstance(duration, (int, float)) or isinstance(duration, bool) or not math.isfinite(duration) or duration <= 0:
                 raise ValueError("durations must be finite and positive")
         if type(self.max_request_bytes) is not int or self.max_request_bytes < 1:
@@ -56,9 +60,10 @@ class Settings:
             keys = json.loads(source)
             if not isinstance(keys, dict):
                 raise ValueError
-            return cls(Path(os.environ.get("KTA_DATABASE", "data/knowledge.sqlite3")), keys)
         except (ValueError, TypeError, KeyError) as error:
             raise ValueError("invalid KTA_KEYS_JSON configuration") from error
+        return cls(Path(os.environ.get("KTA_DATABASE", "data/knowledge.sqlite3")), keys,
+                   processing_seconds=processing_seconds_from_env())
 
     @classmethod
     def demo(cls, database: Path, *, worker_enabled=True):
@@ -76,3 +81,13 @@ class Settings:
             if hmac.compare_digest(digest, expected):
                 principal = Principal(tenant, record["role"])
         return principal
+
+
+def processing_seconds_from_env():
+    try:
+        seconds = float(os.environ.get("KTA_PROCESSING_SECONDS", "300"))
+        if not math.isfinite(seconds) or not 0 < seconds <= threading.TIMEOUT_MAX:
+            raise ValueError
+        return seconds
+    except ValueError as error:
+        raise ValueError("KTA_PROCESSING_SECONDS must be finite, positive and within threading.TIMEOUT_MAX") from error

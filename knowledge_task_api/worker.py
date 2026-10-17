@@ -4,16 +4,50 @@ import logging
 import math
 import sqlite3
 import threading
+import time
+from dataclasses import dataclass
 
 from .store import Store
 
 logger = logging.getLogger("knowledge_task_api.worker")
 
 
+class ProcessingInterrupted(RuntimeError):
+    """A cooperative processor reached its deadline or lost permission to run."""
+
+
+@dataclass(frozen=True)
+class ProcessingContext:
+    deadline: float
+    clock: object
+    shutdown: threading.Event
+    interrupted: threading.Event
+
+    @property
+    def remaining_seconds(self):
+        return max(0.0, self.deadline - self.clock())
+
+    @property
+    def stop_requested(self):
+        return self.shutdown.is_set() or self.interrupted.is_set() or self.remaining_seconds == 0
+
+    def checkpoint(self):
+        if self.stop_requested:
+            raise ProcessingInterrupted("processing permission ended")
+
+
 class Worker:
-    def __init__(self, store: Store, *, processor=None, heartbeat_interval=None):
+    def __init__(self, store: Store, *, processor=None, processor_with_context=None,
+                 heartbeat_interval=None, max_processing_seconds=300, processing_clock=time.monotonic):
         self.store = store
+        if processor is not None and processor_with_context is not None:
+            raise ValueError("choose processor or processor_with_context")
         self.processor = processor
+        self.processor_with_context = processor_with_context
+        if not isinstance(max_processing_seconds, (int, float)) or isinstance(max_processing_seconds, bool) or not 0 < max_processing_seconds <= threading.TIMEOUT_MAX or not math.isfinite(max_processing_seconds):
+            raise ValueError("max_processing_seconds must be finite, positive and within threading.TIMEOUT_MAX")
+        self.max_processing_seconds = max_processing_seconds
+        self.processing_clock = processing_clock
         self.heartbeat_interval = store.lease_seconds / 3 if heartbeat_interval is None else heartbeat_interval
         if not isinstance(self.heartbeat_interval, (int, float)) or isinstance(self.heartbeat_interval, bool) or not math.isfinite(self.heartbeat_interval) or not 0 < self.heartbeat_interval < store.lease_seconds:
             raise ValueError("heartbeat_interval must be finite, positive and shorter than the lease")
@@ -25,9 +59,24 @@ class Worker:
         if lease is None:
             return False
         finished, lost = threading.Event(), threading.Event()
+        context = ProcessingContext(self.processing_clock() + self.max_processing_seconds,
+                                    self.processing_clock, self.stopping, lost)
+
+        def end_attempt():
+            if context.remaining_seconds == 0:
+                self.store.timeout(lease)
+            else:
+                self.store.fail(lease, retryable=True)
 
         def heartbeat():
-            while not finished.wait(self.heartbeat_interval):
+            while not finished.wait(min(self.heartbeat_interval, context.remaining_seconds)):
+                if context.remaining_seconds == 0:
+                    lost.set()
+                    try:
+                        self.store.timeout(lease)
+                    except Exception as error:
+                        logger.error("processing timeout record failed: %s", type(error).__name__)
+                    return
                 if self.stopping.is_set():
                     lost.set()
                     return
@@ -43,19 +92,29 @@ class Worker:
         monitor = threading.Thread(target=heartbeat, name="knowledge-lease", daemon=True)
         monitor.start()
         try:
-            if self.processor is not None:
+            context.checkpoint()
+            if self.processor_with_context is not None:
+                self.processor_with_context(lease, context)
+            elif self.processor is not None:
                 self.processor(lease)
             finished.set()
             monitor.join()
-            if lost.is_set() or self.stopping.is_set():
-                self.store.fail(lease, retryable=True)
+            if context.stop_requested:
+                end_attempt()
                 return True
-            self.store.complete(lease)
+            if not self.store.complete(lease, deadline=context.deadline, deadline_clock=self.processing_clock):
+                if context.remaining_seconds == 0:
+                    self.store.timeout(lease)
+        except ProcessingInterrupted:
+            end_attempt()
         except sqlite3.OperationalError:
-            self.store.fail(lease, retryable=True)
+            end_attempt()
         except Exception:
             logger.error("indexing failed for task %s", lease.id)
-            self.store.fail(lease, retryable=False)
+            if context.remaining_seconds == 0:
+                self.store.timeout(lease)
+            else:
+                self.store.fail(lease, retryable=False)
         finally:
             finished.set()
             monitor.join()

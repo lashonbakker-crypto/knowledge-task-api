@@ -22,6 +22,8 @@ Long processing can extend a live lease without spending another attempt. Expire
 
 The [read-only tool bridge](docs/03-agent-tool-bridge.md) exposes two function-tool schemas, `search_knowledge` and `read_knowledge_source`, backed by existing authenticated API GET endpoints. Model-provided arguments cannot choose URLs, tokens or write operations. Run `python scripts/agent_bridge_demo.py` to verify real SQLite retrieval and tenant isolation without calling a model. **This is not a complete agent runtime.**
 
+Each attempt now has a monotonic processing budget (300 seconds by default). Live timed-out ownership is revoked and records terminal `processing_timeout`; it is not automatically retried. Publication checks the deadline again after acquiring the database lock. Use `processor_with_context(lease, context)` for cooperative checkpoints. This does not forcibly terminate arbitrary callbacks. See the [bilingual processing-budget guide](docs/04-processing-budgets.md).
+
 ## Run locally
 
 ```bash
@@ -40,6 +42,7 @@ Stop that server before running the isolated real-HTTP demo:
 ```bash
 python scripts/demo.py
 python scripts/lease_demo.py
+python scripts/budget_demo.py
 ```
 
 The script launches a temporary server and database, checks job submission, idempotent replay, conflicting requests, background indexing, retrieval, tenant boundaries and SSE, then terminates the server. No model account or external database is needed.
@@ -69,11 +72,12 @@ Status codes: 401 authentication; 403 administrator role; 404 missing or foreign
 python -m pytest
 python scripts/demo.py
 python scripts/lease_demo.py
+python scripts/budget_demo.py
 ```
 
 See [actual validation](docs/validation.md) and [Actions](https://github.com/lashonbakker-crypto/knowledge-task-api/actions). Tests exercise real SQLite transactions, concurrent claims, an abruptly exited process, rollback, retries, fencing, API access and event replay.
 
-Normal startup requires `KTA_KEYS_JSON`. The shape is shown in [.env.example](.env.example), which is documentation and is not loaded automatically. `KTA_DATABASE` selects the database file. Configure private access tokens and HTTPS before deployment. Registration, token rotation and OAuth are not implemented.
+Normal startup requires `KTA_KEYS_JSON`. The shape is shown in [.env.example](.env.example), which is documentation and is not loaded automatically. `KTA_DATABASE` selects the database file; `KTA_PROCESSING_SECONDS` sets the per-attempt budget for normal server/worker startup. Configure private access tokens and HTTPS before deployment. Registration, token rotation and OAuth are not implemented.
 
 SQLite is a single-host starting point. Attempts may execute more than once after a crash; fencing and transactions constrain publication, and do not provide general exactly-once execution. Documents allow up to 64000 characters; JSON write bodies up to 256 KiB; queries up to 12 tokens and 20 returned hits. Heartbeats run at one third of the lease duration by default. Nonfinite or nonpositive durations are refused before database creation. Stopping prevents publication and waits up to five seconds; arbitrary callbacks need their own timeouts. SSE connections close after at most 30 seconds and can reconnect with a cursor.
 
